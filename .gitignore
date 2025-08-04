@@ -1,0 +1,10 @@
+venv/
+.venv/
+downloads/
+recycle/
+documents/
+sources/
+*.db
+*.exe
+*.7z
+__pycache__/
