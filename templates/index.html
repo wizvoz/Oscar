@@ -4,41 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Brian's Video Downloader</title>
-    <!--
-    FILENAME: index.html
-    AUTHOR:   Dora
-    VERSION:  2.5
-    DATESTAMP: August 3, 2025 at 9:12 PM AWST
-    DESCR:    This is the front-end GUI for the yt-dlp Flask application.
-              It communicates with the Python server to start video downloads,
-              displays a real-time log and a progress bar that updates in
-              distinct steps, and fetches a history of past downloads.
-    -->
-    <!-- Chosen Palette: Calm Harmony -->
-    <!-- Application Structure Plan: The SPA is a simple dashboard. A main header provides context. The core interaction area is a central card with a URL input and a download button. Below this is a live log panel to simulate real-time download feedback. Finally, a a progress bar will be displayed for the duration of the simulated download, and a persistent "Download History" section displays past downloads in a chronological list, retrieving this data from a local SQLite database via the Flask server. The layout is a simple flexbox column for mobile and a grid for desktop, prioritizing a clean, focused user experience over a complex one. The local database is used for data persistence, ensuring the download history is saved and updated in real-time. -->
-    <!-- Visualization & Content Choices: 
-        1. URL Input & Download Button: Report info on user task -> Goal: Interact -> Viz: HTML input and button with Tailwind styling -> Interaction: Click button triggers download process -> Justification: The most direct and intuitive way to start the primary task.
-        2. Live Log: Report info on process status -> Goal: Inform -> Method: Pre-formatted text area (code block style) with JavaScript updates -> Interaction: None, it's a live output display -> Justification: Provides a clear, real-time view of the download progress, addressing the user's issue with the previous GUI's lack of feedback.
-        3. Progress Bar: Report info on download progress -> Goal: Calm nerves and inform -> Method: HTML div with dynamic Tailwind width and transition -> Interaction: Updates in real-time based on the log stream from the server -> Justification: Directly addresses user feedback about the app "hanging" by providing a clear, visual indicator that the process is ongoing.
-        4. Download History: Report info on past downloads -> Goal: Archive/Review -> Method: A dynamic list (UL/LI) populated from SQLite database data -> Interaction: Real-time updates by fetching data after a download completes -> Justification: Fulfills the user's request for a permanent, timestamped record of their downloads, using a robust server-side database.
-        5. No specific charts or complex diagrams were needed for this app's purpose, so the focus is on clear, functional UI.
-    -->
-    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #F8F7F4;
-            color: #333333;
-        }
+        body { font-family: 'Inter', sans-serif; background-color: #F8F7F4; color: #333333; }
     </style>
 </head>
-<body class="antialiased flex flex-col min-h-screen">
+<body class="antialiased flex flex-col min-h-screen" 
+      data-gui-version="2.18" 
+      data-gui-date="2025-08-06">
+      
     <header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
         <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
             <div class="text-2xl font-bold text-gray-800">
                 <span class="text-[#4A90E2]">yt-dlp</span> GUI
             </div>
+            <div id="versionDisplay" class="text-sm text-gray-500"></div>
         </nav>
     </header>
 
@@ -46,7 +26,6 @@
         <h1 class="text-3xl font-bold text-gray-800 text-center mb-10">Brian's Video Downloader</h1>
         
         <div class="max-w-4xl mx-auto space-y-8">
-            <!-- Download Control Panel -->
             <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-200">
                 <h2 class="text-xl font-bold text-gray-800 mb-6">New Download</h2>
                 <div class="space-y-4">
@@ -56,16 +35,14 @@
                     </div>
                     <div>
                         <label for="downloadsPath" class="block text-sm font-medium text-gray-700">Destination Directory</label>
-                        <input type="text" id="downloadsPath" value="C:\Users\Simon\theDen\Projects\003 Brian's Video Downloader\downloads" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-100 cursor-not-allowed" readonly>
+                        <input type="text" id="downloadsPath" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-100 cursor-not-allowed" readonly>
                     </div>
                     <button id="downloadButton" class="w-full bg-[#4A90E2] text-white py-3 rounded-md font-semibold text-lg hover:bg-blue-600 transition-colors">
                         Download Video
                     </button>
                 </div>
             </div>
-
-            <!-- Live Log Panel -->
-            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+            <div id="logPanel" class="bg-white p-6 rounded-xl shadow-lg border border-gray-200" style="display: none;">
                 <h2 class="text-xl font-bold text-gray-800 mb-4">Current Download Log</h2>
                 <div class="space-y-2">
                     <div class="w-full h-4 bg-gray-200 rounded-full overflow-hidden">
@@ -73,16 +50,14 @@
                     </div>
                     <div id="statusText" class="text-center text-sm font-medium text-gray-600">Idle</div>
                 </div>
-                <pre id="logOutput" class="bg-gray-800 text-green-400 text-sm p-4 rounded-md overflow-x-auto mt-4">
-[INFO] Ready to download.
-</pre>
+                <pre id="logOutput" class="bg-gray-800 text-green-400 text-sm p-4 rounded-md overflow-x-auto mt-4 h-48"></pre>
             </div>
-
-            <!-- Download History Panel -->
             <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-                <h2 class="text-xl font-bold text-gray-800 mb-4">Download History</h2>
+                <h2 class="text-xl font-bold text-gray-800 mb-4 flex justify-between items-center">
+                    <span>Download History</span>
+                    <span id="historyPathDisplay" class="text-base font-normal text-gray-500"></span>
+                </h2>
                 <ul id="historyList" class="space-y-4">
-                    <!-- History items will be populated here by JavaScript -->
                     <li class="text-gray-500">Loading history...</li>
                 </ul>
             </div>
@@ -100,34 +75,28 @@
             const downloadButton = document.getElementById('downloadButton');
             const logOutput = document.getElementById('logOutput');
             const historyList = document.getElementById('historyList');
+            const logPanel = document.getElementById('logPanel');
+            let isDownloading = false;
 
-            const startDownload = async () => {
-                const videoUrlInput = document.getElementById('videoUrl');
-                const videoUrl = videoUrlInput.value.trim();
-                if (!videoUrl) {
-                    logOutput.textContent = "[ERROR] Please enter a video URL.";
-                    return;
-                }
-
-                logOutput.textContent = `[INFO] Starting download for: ${videoUrl}\n`;
-                document.getElementById('progressBar').style.width = '0%';
-                document.getElementById('statusText').textContent = 'Processing...';
-
+            const fetchConfig = async () => {
                 try {
-                    const response = await fetch('http://127.0.0.1:5000/start-download', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url: videoUrl })
-                    });
-                    const result = await response.json();
-                    if (result.status === 'success') {
-                        logOutput.textContent += `[INFO] Server has started the download process.\n`;
-                    } else {
-                        logOutput.textContent += `[ERROR] Server failed to start download: ${result.message}\n`;
-                    }
+                    // Get backend config
+                    const response = await fetch('http://127.0.0.1:5000/config');
+                    const config = await response.json();
+                    const backendVersion = config.version;
+                    
+                    // Get frontend info from the body's data-attributes
+                    const guiVersion = document.body.dataset.guiVersion || 'N/A';
+                    const guiDate = document.body.dataset.guiDate || '';
+                    
+                    // Display combined information
+                    document.getElementById('versionDisplay').textContent = `Backend: v${backendVersion} | GUI: v${guiVersion} (${guiDate})`;
+                    
+                    document.getElementById('downloadsPath').value = config.download_dir;
+                    document.getElementById('historyPathDisplay').textContent = `(Saving to: ${config.download_dir})`;
                 } catch (error) {
-                    logOutput.textContent += `[ERROR] Network error: Could not connect to the Flask server.\n`;
-                    console.error('Fetch error:', error);
+                    console.error('Error fetching config:', error);
+                    document.getElementById('versionDisplay').textContent = 'Version data unavailable';
                 }
             };
 
@@ -143,66 +112,94 @@
                             const listItem = document.createElement('li');
                             listItem.className = 'p-4 bg-white rounded-lg shadow-sm border border-gray-200';
                             listItem.innerHTML = `
-                                <p class="text-xs text-gray-500">${item.timestamp}</p>
-                                <p class="font-medium truncate mt-1">Video: ${item.filename}</p>
-                                <a href="${item.url}" target="_blank" class="text-[#4A90E2] text-sm hover:underline block truncate">URL: ${item.url}</a>
-                                <p class="text-sm text-gray-700 mt-1">Path: ${item.destination}</p>
+                                <p class="text-xs text-gray-500">${new Date(item.timestamp).toLocaleString()}</p>
+                                <p class="font-medium truncate mt-1" title="${item.filename}">${item.filename}</p>
+                                <a href="${item.url}" target="_blank" class="text-[#4A90E2] text-sm hover:underline block truncate">Source URL</a>
                             `;
                             historyList.appendChild(listItem);
                         });
                     }
                 } catch (error) {
-                    historyList.innerHTML = '<li class="text-red-500">Error fetching history. Is the server running?</li>';
+                    historyList.innerHTML = '<li class="text-red-500">Error fetching history.</li>';
                     console.error('Fetch history error:', error);
                 }
             };
+            
+            const startDownload = async () => {
+                if (isDownloading) return;
+                const videoUrl = document.getElementById('videoUrl').value.trim();
+                if (!videoUrl) { alert("Please enter a video URL."); return; }
+                isDownloading = true;
+                logPanel.style.display = 'block';
+                logOutput.textContent = `[INFO] Requesting download for: ${videoUrl}\n`;
+                document.getElementById('progressBar').style.width = '0%';
+                document.getElementById('statusText').textContent = 'Initializing...';
+                downloadButton.disabled = true;
+                downloadButton.classList.add('cursor-not-allowed', 'bg-gray-400');
+                try {
+                    const response = await fetch('http://127.0.0.1:5000/start-download', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: videoUrl })
+                    });
+                    const result = await response.json();
+                    if (result.status === 'success') {
+                        logOutput.textContent += `[INFO] Server accepted request. Streaming logs...\n`;
+                        streamLogs();
+                    } else {
+                        logOutput.textContent += `[ERROR] Server failed to start download: ${result.message}\n`;
+                        resetDownloadState();
+                    }
+                } catch (error) {
+                    logOutput.textContent += `[ERROR] Network error: Could not connect to Flask server.\n`;
+                    console.error('Fetch error:', error);
+                    resetDownloadState();
+                }
+            };
+
+            const resetDownloadState = () => {
+                isDownloading = false;
+                downloadButton.disabled = false;
+                downloadButton.classList.remove('cursor-not-allowed', 'bg-gray-400');
+            };
 
             const streamLogs = () => {
-                let downloadSuccess = false;
                 const eventSource = new EventSource('http://127.0.0.1:5000/stream-logs');
                 eventSource.onmessage = (event) => {
                     const message = event.data;
                     logOutput.textContent += `${message}\n`;
                     logOutput.scrollTop = logOutput.scrollHeight;
-
                     const progressBar = document.getElementById('progressBar');
                     const statusText = document.getElementById('statusText');
-
-                    if (message.includes('[youtube] Extracting URL:')) {
-                        progressBar.style.width = '10%';
-                        statusText.textContent = 'Extracting video info...';
-                    } else if (message.includes('[info]') && message.includes('Downloading')) {
-                        progressBar.style.width = '25%';
-                        statusText.textContent = 'Downloading files...';
-                    } else if (message.includes('[Merger] Merging formats')) {
-                        progressBar.style.width = '75%';
-                        statusText.textContent = 'Merging video and audio...';
-                    } else if (message.includes('[SUCCESS] Download completed')) {
-                        downloadSuccess = true;
+                    if (message.includes('Extracting URL')) { progressBar.style.width = '10%'; statusText.textContent = 'Extracting info...'; } 
+                    else if (message.includes('Downloading')) { progressBar.style.width = '25%'; statusText.textContent = 'Downloading...'; } 
+                    else if (message.includes('[Merger]')) { progressBar.style.width = '75%'; statusText.textContent = 'Merging formats...'; } 
+                    else if (message.includes('[SUCCESS]')) { progressBar.style.width = '100%'; statusText.textContent = 'Download Complete!'; } 
+                    else if (message.includes('[ERROR]')) {
                         progressBar.style.width = '100%';
-                        statusText.textContent = 'Download Complete!';
+                        progressBar.classList.remove('bg-green-500');
+                        progressBar.classList.add('bg-red-500');
+                        statusText.textContent = 'Download Failed!';
                     }
-                    
                     if (message.includes('---DOWNLOAD_COMPLETE---')) {
                         eventSource.close();
-                        if (downloadSuccess) {
-                            statusText.textContent = 'Download Complete!';
-                        } else {
-                            statusText.textContent = 'Download Failed!';
-                        }
+                        resetDownloadState();
                         fetchHistory();
+                        setTimeout(() => { logPanel.style.display = 'none'; }, 5000);
                     }
                 };
-
                 eventSource.onerror = (error) => {
                     console.error('EventSource failed:', error);
+                    logOutput.textContent += `[ERROR] Log streaming connection failed.\n`;
                     eventSource.close();
+                    resetDownloadState();
                 };
             };
             
+            // Initial setup
+            fetchConfig();
+            fetchHistory();
             downloadButton.addEventListener('click', startDownload);
-            fetchHistory(); // Initial fetch of history
-            streamLogs(); // Start streaming logs from the server
         });
     </script>
 </body>
