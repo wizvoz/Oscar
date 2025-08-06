@@ -1,5 +1,3 @@
-venv/
-.venv/
 downloads/
 recycle/
 documents/
@@ -7,4 +5,20 @@ sources/
 *.db
 *.exe
 *.7z
+
+# Python Virtual Environment
+.venv/
 __pycache__/
+
+# PyInstaller build files
+build/
+dist/
+*.spec
+
+# User Data
+downloads.db
+downloads.db-journal
+*.part
+
+# Local SSL Certificates
+*.pem

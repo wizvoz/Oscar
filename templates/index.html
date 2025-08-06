@@ -5,20 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Brian's Video Downloader</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { font-family: 'Inter', sans-serif; background-color: #F8F7F4; color: #333333; }
-    </style>
+    <style> body { font-family: 'Inter', sans-serif; background-color: #F8F7F4; } </style>
 </head>
-<body class="antialiased flex flex-col min-h-screen" 
-      data-gui-version="2.18" 
-      data-gui-date="2025-08-06">
+<body class="antialiased flex flex-col min-h-screen" data-gui-version="2.27" data-gui-date="2025-08-06">
       
     <header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
         <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
-            <div class="text-2xl font-bold text-gray-800">
-                <span class="text-[#4A90E2]">yt-dlp</span> GUI
-            </div>
-            <div id="versionDisplay" class="text-sm text-gray-500"></div>
+            <div class="text-2xl font-bold text-gray-800"><span class="text-[#4A90E2]">yt-dlp</span> GUI</div>
+            <div id="versionDisplay" class="text-sm text-gray-500">Loading...</div>
         </nav>
     </header>
 
@@ -26,181 +20,54 @@
         <h1 class="text-3xl font-bold text-gray-800 text-center mb-10">Brian's Video Downloader</h1>
         
         <div class="max-w-4xl mx-auto space-y-8">
-            <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-200">
+            <div class="bg-white p-8 rounded-xl shadow-lg border">
                 <h2 class="text-xl font-bold text-gray-800 mb-6">New Download</h2>
                 <div class="space-y-4">
                     <div>
                         <label for="videoUrl" class="block text-sm font-medium text-gray-700">Video URL</label>
-                        <input type="text" id="videoUrl" placeholder="Paste video URL here..." class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4A90E2] focus:border-[#4A90E2]">
+                        <input type="text" id="videoUrl" placeholder="Paste video URL here..." class="mt-1 block w-full px-4 py-2 border rounded-md" value="{{ video_url or '' }}">
                     </div>
                     <div>
                         <label for="downloadsPath" class="block text-sm font-medium text-gray-700">Destination Directory</label>
-                        <input type="text" id="downloadsPath" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-100 cursor-not-allowed" readonly>
+                        <div class="mt-1 flex rounded-md shadow-sm">
+                            <input type="text" id="downloadsPath" class="relative block w-full rounded-none rounded-l-md bg-gray-100 border border-gray-300 px-3 py-2 text-gray-700" readonly>
+                            <button id="copyPathButton" type="button" class="relative -ml-px inline-flex items-center space-x-2 rounded-r-md border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100">
+                                <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75" /></svg>
+                                <span>Copy</span>
+                            </button>
+                        </div>
                     </div>
-                    <button id="downloadButton" class="w-full bg-[#4A90E2] text-white py-3 rounded-md font-semibold text-lg hover:bg-blue-600 transition-colors">
-                        Download Video
-                    </button>
+                    <button id="downloadButton" class="w-full bg-[#4A90E2] text-white py-3 rounded-md">Download Video</button>
+                    <div class="text-center mt-4 border-t pt-4">
+                        <button id="cleanupButton" class="text-sm text-gray-500 hover:underline">Cleanup Incomplete Downloads</button>
+                    </div>
                 </div>
             </div>
-            <div id="logPanel" class="bg-white p-6 rounded-xl shadow-lg border border-gray-200" style="display: none;">
+            <div id="logPanel" class="bg-white p-6 rounded-xl shadow-lg border" style="display: none;">
                 <h2 class="text-xl font-bold text-gray-800 mb-4">Current Download Log</h2>
-                <div class="space-y-2">
-                    <div class="w-full h-4 bg-gray-200 rounded-full overflow-hidden">
-                        <div id="progressBar" class="h-full bg-green-500 transition-all duration-500 ease-out" style="width: 0%;"></div>
-                    </div>
-                    <div id="statusText" class="text-center text-sm font-medium text-gray-600">Idle</div>
-                </div>
-                <pre id="logOutput" class="bg-gray-800 text-green-400 text-sm p-4 rounded-md overflow-x-auto mt-4 h-48"></pre>
+                <div class="w-full h-4 bg-gray-200 rounded-full overflow-hidden"><div id="progressBar" class="h-full bg-green-500" style="width: 0%;"></div></div>
+                <div id="statusText" class="text-center text-sm font-medium text-gray-600">Idle</div>
+                <pre id="logOutput" class="bg-gray-800 text-green-400 text-sm p-4 mt-4 h-48 overflow-y-auto rounded-md"></pre>
             </div>
-            <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+            <div class="bg-white p-6 rounded-xl shadow-lg border">
                 <h2 class="text-xl font-bold text-gray-800 mb-4 flex justify-between items-center">
                     <span>Download History</span>
                     <span id="historyPathDisplay" class="text-base font-normal text-gray-500"></span>
                 </h2>
-                <ul id="historyList" class="space-y-4">
-                    <li class="text-gray-500">Loading history...</li>
-                </ul>
+                <ul id="historyList" class="space-y-4"><li class="text-gray-500">Loading history...</li></ul>
             </div>
         </div>
     </main>
-
+    
     <footer class="bg-gray-800 text-white py-8 mt-auto">
-        <div class="container mx-auto px-6 text-center">
-            <p>Custom GUI for yt-dlp, created by Dora.</p>
-        </div>
+        <div class="container mx-auto px-6 text-center"><p>Custom GUI for yt-dlp, created by Dora.</p></div>
     </footer>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const downloadButton = document.getElementById('downloadButton');
-            const logOutput = document.getElementById('logOutput');
-            const historyList = document.getElementById('historyList');
-            const logPanel = document.getElementById('logPanel');
-            let isDownloading = false;
-
-            const fetchConfig = async () => {
-                try {
-                    // Get backend config
-                    const response = await fetch('http://127.0.0.1:5000/config');
-                    const config = await response.json();
-                    const backendVersion = config.version;
-                    
-                    // Get frontend info from the body's data-attributes
-                    const guiVersion = document.body.dataset.guiVersion || 'N/A';
-                    const guiDate = document.body.dataset.guiDate || '';
-                    
-                    // Display combined information
-                    document.getElementById('versionDisplay').textContent = `Backend: v${backendVersion} | GUI: v${guiVersion} (${guiDate})`;
-                    
-                    document.getElementById('downloadsPath').value = config.download_dir;
-                    document.getElementById('historyPathDisplay').textContent = `(Saving to: ${config.download_dir})`;
-                } catch (error) {
-                    console.error('Error fetching config:', error);
-                    document.getElementById('versionDisplay').textContent = 'Version data unavailable';
-                }
-            };
-
-            const fetchHistory = async () => {
-                try {
-                    const response = await fetch('http://127.0.0.1:5000/get-history');
-                    const history = await response.json();
-                    historyList.innerHTML = '';
-                    if (history.length === 0) {
-                        historyList.innerHTML = '<li class="text-gray-500">No downloads yet.</li>';
-                    } else {
-                        history.forEach(item => {
-                            const listItem = document.createElement('li');
-                            listItem.className = 'p-4 bg-white rounded-lg shadow-sm border border-gray-200';
-                            listItem.innerHTML = `
-                                <p class="text-xs text-gray-500">${new Date(item.timestamp).toLocaleString()}</p>
-                                <p class="font-medium truncate mt-1" title="${item.filename}">${item.filename}</p>
-                                <a href="${item.url}" target="_blank" class="text-[#4A90E2] text-sm hover:underline block truncate">Source URL</a>
-                            `;
-                            historyList.appendChild(listItem);
-                        });
-                    }
-                } catch (error) {
-                    historyList.innerHTML = '<li class="text-red-500">Error fetching history.</li>';
-                    console.error('Fetch history error:', error);
-                }
-            };
-            
-            const startDownload = async () => {
-                if (isDownloading) return;
-                const videoUrl = document.getElementById('videoUrl').value.trim();
-                if (!videoUrl) { alert("Please enter a video URL."); return; }
-                isDownloading = true;
-                logPanel.style.display = 'block';
-                logOutput.textContent = `[INFO] Requesting download for: ${videoUrl}\n`;
-                document.getElementById('progressBar').style.width = '0%';
-                document.getElementById('statusText').textContent = 'Initializing...';
-                downloadButton.disabled = true;
-                downloadButton.classList.add('cursor-not-allowed', 'bg-gray-400');
-                try {
-                    const response = await fetch('http://127.0.0.1:5000/start-download', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url: videoUrl })
-                    });
-                    const result = await response.json();
-                    if (result.status === 'success') {
-                        logOutput.textContent += `[INFO] Server accepted request. Streaming logs...\n`;
-                        streamLogs();
-                    } else {
-                        logOutput.textContent += `[ERROR] Server failed to start download: ${result.message}\n`;
-                        resetDownloadState();
-                    }
-                } catch (error) {
-                    logOutput.textContent += `[ERROR] Network error: Could not connect to Flask server.\n`;
-                    console.error('Fetch error:', error);
-                    resetDownloadState();
-                }
-            };
-
-            const resetDownloadState = () => {
-                isDownloading = false;
-                downloadButton.disabled = false;
-                downloadButton.classList.remove('cursor-not-allowed', 'bg-gray-400');
-            };
-
-            const streamLogs = () => {
-                const eventSource = new EventSource('http://127.0.0.1:5000/stream-logs');
-                eventSource.onmessage = (event) => {
-                    const message = event.data;
-                    logOutput.textContent += `${message}\n`;
-                    logOutput.scrollTop = logOutput.scrollHeight;
-                    const progressBar = document.getElementById('progressBar');
-                    const statusText = document.getElementById('statusText');
-                    if (message.includes('Extracting URL')) { progressBar.style.width = '10%'; statusText.textContent = 'Extracting info...'; } 
-                    else if (message.includes('Downloading')) { progressBar.style.width = '25%'; statusText.textContent = 'Downloading...'; } 
-                    else if (message.includes('[Merger]')) { progressBar.style.width = '75%'; statusText.textContent = 'Merging formats...'; } 
-                    else if (message.includes('[SUCCESS]')) { progressBar.style.width = '100%'; statusText.textContent = 'Download Complete!'; } 
-                    else if (message.includes('[ERROR]')) {
-                        progressBar.style.width = '100%';
-                        progressBar.classList.remove('bg-green-500');
-                        progressBar.classList.add('bg-red-500');
-                        statusText.textContent = 'Download Failed!';
-                    }
-                    if (message.includes('---DOWNLOAD_COMPLETE---')) {
-                        eventSource.close();
-                        resetDownloadState();
-                        fetchHistory();
-                        setTimeout(() => { logPanel.style.display = 'none'; }, 5000);
-                    }
-                };
-                eventSource.onerror = (error) => {
-                    console.error('EventSource failed:', error);
-                    logOutput.textContent += `[ERROR] Log streaming connection failed.\n`;
-                    eventSource.close();
-                    resetDownloadState();
-                };
-            };
-            
-            // Initial setup
-            fetchConfig();
-            fetchHistory();
-            downloadButton.addEventListener('click', startDownload);
-        });
+        window.APP_CONFIG = {{ config_data | safe }};
+        window.APP_HISTORY = {{ history_data | safe }};
     </script>
+    
+    <script src="/static/js/app.js"></script>
 </body>
 </html>

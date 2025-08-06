@@ -1,53 +1,60 @@
-// content.js
+// content.js (v1.3 - Added URL cleaning to prevent playlist downloads)
 // This script runs on the YouTube page and injects the download button.
 
 (function() {
   function createButton() {
-    // Check if the button already exists to prevent duplicates
     if (document.getElementById('oscar-fetch-button')) {
-      return;
+      return; // Button already exists
     }
 
-    // Create the button element
     const button = document.createElement('button');
     button.id = 'oscar-fetch-button';
     button.textContent = 'Oscar Fetch';
     button.style.cssText = `
-      background-color: #4A90E2;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      padding: 8px 12px;
-      margin-left: 10px;
-      cursor: pointer;
-      font-weight: bold;
+      background-color: #4A90E2; color: white; border: none;
+      border-radius: 4px; padding: 8px 12px; margin-left: 10px;
+      cursor: pointer; font-weight: bold; z-index: 9999;
     `;
 
-    // Add an event listener to the button
     button.addEventListener('click', () => {
-      const url = window.location.href;
-      // Clean the URL before sending to the server
-      const cleanedUrl = url.split('&')[0].split('?')[0];
+      console.log('Oscar-Fetch: Button clicked.');
+      try {
+        const currentUrl = new URL(window.location.href);
+        const videoId = currentUrl.searchParams.get('v');
 
-      // Send a message to the background script to handle the fetch request
-      chrome.runtime.sendMessage({
-        action: 'oscarFetch',
-        url: cleanedUrl
-      });
+        if (videoId) {
+          const cleanUrl = `https://www.youtube.com/watch?v=${videoId}`;
+          console.log(`Oscar-Fetch: Sending cleaned URL to background: ${cleanUrl}`);
+          
+          chrome.runtime.sendMessage({ action: 'oscarFetch', url: cleanUrl });
+
+          // Give the user some visual feedback
+          button.textContent = 'Sent!';
+          button.style.backgroundColor = '#28a745';
+          setTimeout(() => {
+              button.textContent = 'Oscar Fetch';
+              button.style.backgroundColor = '#4A90E2';
+          }, 3000);
+        } else {
+          throw new Error('Could not find a video ID ("v" parameter) in the URL.');
+        }
+      } catch (error) {
+          console.error('Oscar-Fetch: Error processing URL.', error);
+          alert(`Oscar-Fetch Error: Could not process the video URL.\n\n${error.message}`);
+      }
     });
 
-    // Find the right place to inject the button
     const container = document.querySelector('ytd-watch-metadata #actions');
     if (container) {
       container.appendChild(button);
     }
   }
 
-  // Use a MutationObserver to ensure the button is added even when navigating within YouTube
-  const observer = new MutationObserver(createButton);
-  const config = { childList: true, subtree: true };
-  observer.observe(document.body, config);
+  const observer = new MutationObserver(() => {
+    setTimeout(createButton, 500);
+  });
+  
+  observer.observe(document.body, { childList: true, subtree: true });
 
-  // Initial call to create the button
-  createButton();
+  setTimeout(createButton, 2000); 
 })();

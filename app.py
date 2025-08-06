@@ -1,197 +1,143 @@
 #
 # FILENAME: app.py
 # AUTHOR:   Dora (Revised)
-# VERSION:  1.18 (Added /config endpoint for GUI)
-# DESCR:    This Flask application serves a custom HTML GUI for yt-dlp.
-#           It handles download requests, executes the yt-dlp process,
-#           and saves download history to a local SQLite database.
+# VERSION:  1.29 (PyInstaller compatibility)
+# DESCR:    Adds a resource_path function and updates the Flask app
+#           constructor to be compatible with PyInstaller packaging.
 #
 
+import sys
+import os
 from flask import Flask, render_template, request, jsonify, Response
 from flask_cors import CORS
 import subprocess
-import os
 import sqlite3
-import threading
-from queue import Queue
 from datetime import datetime
-import sys
+import glob
+import json
+from queue import Queue
+import threading
 
 # ==============================================================================
-# CONFIGURATION
+# CONFIGURATION & PATHING
 # ==============================================================================
 DATABASE_FILE = 'downloads.db'
 DOWNLOAD_DIR = os.path.join(os.getcwd(), 'downloads')
-LOG_QUEUE = Queue()
-APP_VERSION = "1.18"
+APP_VERSION = "1.29"
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 # ==============================================================================
-# DATABASE SETUP & HELPERS
+# FLASK APP SETUP
 # ==============================================================================
-# ... (this section is unchanged) ...
-def init_database():
-    """Initializes the SQLite database with the downloads table."""
-    conn = sqlite3.connect(DATABASE_FILE, check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS downloads (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        url TEXT NOT NULL,
-        filename TEXT NOT NULL,
-        destination TEXT NOT NULL,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )''')
-    conn.commit()
-    conn.close()
-
-def save_download_to_db(url, filename, destination):
-    """Saves a completed download's details to the database."""
-    conn = sqlite3.connect(DATABASE_FILE, check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute('''
-    INSERT INTO downloads (url, filename, destination) VALUES (?, ?, ?)
-    ''', (url, filename, destination))
-    conn.commit()
-    conn.close()
-    
-def get_download_history():
-    """Fetches all download history from the database."""
-    conn = sqlite3.connect(DATABASE_FILE, check_same_thread=False)
-    conn.row_factory = sqlite3.Row # This allows accessing columns by name
-    cursor = conn.cursor()
-    cursor.execute('SELECT url, filename, destination, timestamp FROM downloads ORDER BY timestamp DESC')
-    history = cursor.fetchall()
-    conn.close()
-    return [dict(row) for row in history]
-
-# ==============================================================================
-# FLASK APP & HELPER FUNCTIONS
-# ==============================================================================
-# ... (this section is unchanged) ...
-app = Flask(__name__)
+app = Flask(
+    __name__,
+    template_folder=resource_path('templates'),
+    static_folder=resource_path('static')
+)
 CORS(app)
 
-def run_yt_dlp(url, destination_path):
-    """Executes the yt-dlp command-line process in a separate thread."""
+# --- The rest of the file (database functions, routes, etc.) is unchanged ---
+def init_database():
+    conn = sqlite3.connect(DATABASE_FILE, check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS downloads (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT NOT NULL, filename TEXT NOT NULL, destination TEXT NOT NULL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    conn.commit()
+    conn.close()
+
+def get_download_history():
+    conn = sqlite3.connect(DATABASE_FILE, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute('SELECT url, filename, destination, timestamp FROM downloads ORDER BY timestamp DESC')
+    history_rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in history_rows]
+
+def save_download_to_db(url, filename, destination):
+    conn = sqlite3.connect(DATABASE_FILE, check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute('''INSERT INTO downloads (url, filename, destination) VALUES (?, ?, ?)''', (url, filename, destination))
+    conn.commit()
+    conn.close()
+
+def stream_yt_dlp_process(url, destination_path):
+    if not os.path.exists(destination_path):
+        os.makedirs(destination_path)
+        yield f"data: [INFO] Created download directory: {destination_path}\n\n"
+    is_windows = sys.platform == "win32"
+    yt_dlp_exe = 'yt-dlp.exe' if is_windows else 'yt-dlp'
+    ffmpeg_exe = 'ffmpeg.exe' if is_windows else 'ffmpeg'
+    yt_dlp_path = os.path.join(os.getcwd(), yt_dlp_exe)
+    ffmpeg_path = os.path.join(os.getcwd(), ffmpeg_exe)
+    if not os.path.exists(yt_dlp_path):
+        yield f"data: [ERROR] Critical: {yt_dlp_exe} not found in {os.getcwd()}\n\n"
+        yield f"data: ---DOWNLOAD_COMPLETE---\n\n"
+        return
+    command = [
+        yt_dlp_path, '--no-playlist', '--output', os.path.join(destination_path, '%(title)s.%(ext)s'),
+        '--merge-output-format', 'mp4', '--no-progress', '--ffmpeg-location', ffmpeg_path, url
+    ]
+    yield f"data: [INFO] Running command: {' '.join(command)}\n\n"
+    final_filename = None
     try:
-        if not os.path.exists(destination_path):
-            os.makedirs(destination_path)
-            LOG_QUEUE.put(f"[INFO] Created download directory: {destination_path}")
-
-        is_windows = sys.platform == "win32"
-        yt_dlp_exe = 'yt-dlp.exe' if is_windows else 'yt-dlp'
-        ffmpeg_exe = 'ffmpeg.exe' if is_windows else 'ffmpeg'
-
-        yt_dlp_path = os.path.join(os.getcwd(), yt_dlp_exe)
-        ffmpeg_path = os.path.join(os.getcwd(), ffmpeg_exe)
-        
-        if not os.path.exists(yt_dlp_path):
-            LOG_QUEUE.put(f"[ERROR] Critical: {yt_dlp_exe} not found in {os.getcwd()}")
-            LOG_QUEUE.put("---DOWNLOAD_COMPLETE---")
-            return
-            
-        command = [
-            yt_dlp_path,
-            '--output', os.path.join(destination_path, '%(title)s.%(ext)s'),
-            '--merge-output-format', 'mp4',
-            '--no-progress',
-            '--ffmpeg-location', ffmpeg_path,
-            url
-        ]
-        
-        LOG_QUEUE.put(f"[INFO] Running command: {' '.join(command)}")
-        
-        process = subprocess.Popen(
-            command, 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.STDOUT, 
-            universal_newlines=True, 
-            encoding='utf-8',
-            errors='replace'
-        )
-
-        filename = None
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, encoding='utf-8', errors='replace')
         for line in process.stdout:
             clean_line = line.strip()
-            LOG_QUEUE.put(clean_line)
-            if "[download] Destination:" in clean_line:
-                filename = os.path.basename(clean_line.split('Destination:')[1].strip())
+            yield f"data: {clean_line}\n\n"
+            if "[Merger] Merging formats into" in clean_line:
+                try: final_filename = clean_line.split('"')[1]
+                except IndexError: pass
             elif "has already been downloaded" in clean_line and "[download] " in clean_line:
-                 try:
-                    filename = os.path.basename(clean_line.split("[download] ")[1].split(" has already been downloaded")[0].strip())
-                 except Exception:
-                    pass
-
+                try: final_filename = clean_line.split("[download] ")[1].split(" has already been downloaded")[0].strip()
+                except Exception: pass
+            elif final_filename is None and "[download] Destination:" in clean_line:
+                final_filename = clean_line.split('Destination:')[1].strip()
         process.wait()
+        if process.returncode == 0 and final_filename:
+            db_filename = os.path.basename(final_filename)
+            with app.app_context(): save_download_to_db(url, db_filename, destination_path)
+            yield f"data: [SUCCESS] Download completed for '{db_filename}'\n\n"
+        else: yield f"data: [ERROR] Download failed for '{url}' with return code: {process.returncode}\n\n"
+    except Exception as e: yield f"data: [ERROR] A server-side exception occurred: {e}\n\n"
+    finally: yield f"data: ---DOWNLOAD_COMPLETE---\n\n"
 
-        if process.returncode == 0 and filename:
-            LOG_QUEUE.put(f"[SUCCESS] Download completed for '{url}'")
-            save_download_to_db(url, filename, destination_path)
-        elif process.returncode == 0 and not filename:
-            LOG_QUEUE.put(f"[WARNING] Process exited successfully but no filename was captured.")
-        else:
-            LOG_QUEUE.put(f"[ERROR] Download failed for '{url}' with return code: {process.returncode}")
-        
-        LOG_QUEUE.put("---DOWNLOAD_COMPLETE---")
-
-    except FileNotFoundError:
-        LOG_QUEUE.put(f"[ERROR] A required file was not found. Ensure yt-dlp and ffmpeg are in the root directory.")
-        LOG_QUEUE.put("---DOWNLOAD_COMPLETE---")
-    except Exception as e:
-        LOG_QUEUE.put(f"[ERROR] An unexpected error occurred: {e}")
-        LOG_QUEUE.put("---DOWNLOAD_COMPLETE---")
-
-
-# ==============================================================================
-# FLASK WEB ROUTES
-# ==============================================================================
 @app.route('/')
 def index():
-    return render_template('index.html') # Version is now loaded by JS
+    url = request.args.get('url', '')
+    config_data = {'version': APP_VERSION, 'download_dir': DOWNLOAD_DIR}
+    history_data = get_download_history()
+    return render_template('index.html', video_url=url, config_data=json.dumps(config_data), history_data=json.dumps(history_data))
 
-@app.route('/start-download', methods=['POST'])
-def start_download():
-    data = request.json
-    url = data.get('url')
-    destination_path = DOWNLOAD_DIR
+@app.route('/start-download-stream')
+def start_download_stream():
+    url = request.args.get('url')
     if not url:
-        return jsonify({"status": "error", "message": "No URL provided"}), 400
-    download_thread = threading.Thread(target=run_yt_dlp, args=(url, destination_path), daemon=True)
-    download_thread.start()
-    return jsonify({"status": "success", "message": "Download process initiated."})
+        def error_gen():
+            yield "data: [ERROR] No URL provided.\n\n"
+            yield "data: ---DOWNLOAD_COMPLETE---\n\n"
+        return Response(error_gen(), mimetype='text/event-stream')
+    return Response(stream_yt_dlp_process(url, DOWNLOAD_DIR), mimetype='text/event-stream')
 
-@app.route('/stream-logs')
-def stream_logs():
-    def generate():
-        while True:
-            message = LOG_QUEUE.get()
-            yield f"data: {message}\n\n"
-            if "---DOWNLOAD_COMPLETE---" in message:
-                break
-    return Response(generate(), mimetype='text/event-stream')
-    
-@app.route('/get-history')
-def get_history():
-    history = get_download_history()
-    return jsonify(history)
+@app.route('/cleanup_partials', methods=['POST'])
+def cleanup_partials():
+    deleted_count = 0
+    search_path = os.path.join(DOWNLOAD_DIR, '*.part')
+    partial_files = glob.glob(search_path)
+    for f in partial_files:
+        try: os.remove(f); deleted_count += 1
+        except OSError: pass
+    return jsonify({"deleted_count": deleted_count})
 
-# --- NEW AND REVISED ROUTES ---
-@app.route('/config')
-def get_config():
-    """Provides essential configuration to the frontend."""
-    return jsonify({
-        'version': APP_VERSION,
-        'download_dir': DOWNLOAD_DIR
-    })
-
-# ==============================================================================
-# MAIN EXECUTION BLOCK
-# ==============================================================================
-# ... (this section is unchanged) ...
 if __name__ == '__main__':
-    print(f"[DEBUG] App version {os.path.basename(__file__)} {APP_VERSION} loaded.")
     init_database()
     if not os.path.exists(DOWNLOAD_DIR):
         os.makedirs(DOWNLOAD_DIR)
-        print(f"[DEBUG] Created default download directory: {DOWNLOAD_DIR}")
-    app.run(debug=True, threaded=True)
+    app.run(host='0.0.0.0', debug=True, threaded=True)
